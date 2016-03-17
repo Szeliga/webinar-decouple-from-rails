@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+
+    <title>Decouple yourself from Rails - by Szymon Szeliga</title>
+
+    <meta name="description" content="A framework for easily creating beautiful presentations using HTML">
+    <meta name="author" content="Hakim El Hattab">
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/black.css" id="theme">
+
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <div class="reveal">
+
+      <!-- Any section element inside of this container is displayed as a slide -->
+      <div class="slides">
+        <section>
+          <h2>Decouple yourself from Rails</h2>
+          <p>Highly opinionated guide on how to keep your sanity</p>
+          <p>when writting Rails apps</p>
+          <smal class="fragment">(alpha version)</smal>
+
+          <aside class="notes">
+            I would like to say upfront, that this presentation is a work in progress.
+            While I was working on it a buttload of topics popped into my head, that I could talk about.
+            But if I would incorporate of all those ideas, we would be sitting here the whole weekend.
+            At the end I will share with you my plans for the future of this presentation.
+          </aside>
+        </section>
+
+        <section>
+          <h2>Decouple yourself from Rails</h2>
+          <p>Presentation plan:</p>
+          <ol style='white-space: nowrap;'>
+            <li class="fragment">What does it mean?</li>
+            <li class="fragment">Why?</li>
+            <li class="fragment">How?</li>
+            <li class="fragment">Example!</li>
+          </ol>
+
+          <aside class="notes">
+            First I will cover the theoretical principles behind my reasoning, at the end I will show
+            how all the proposed solutions are implemented, in a very simple and naive example, but it will get the job done
+            If I would show you some completed piece of code you would forget half of what I said about it and wouldn't be able to focus on the important stuff
+            (or is it just me?)
+          </aside>
+        </section>
+
+        <section>
+          <h2>What does it mean?</h2>
+          <ul>
+            <li class="fragment">Don't think about features in terms of models and controllers</li>
+            <li class="fragment">Write code like you would any other application in an object-oriented language</li>
+            <li class="fragment">Create interfaces that you (and other programmers after you) should use to access the implemented feature</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Why?</h2>
+          <ul>
+            <li class="fragment">Loosely coupled code</li>
+            <li class="fragment">Easier testing (dependency injection and stubbing)</li>
+            <li class="fragment">Designing durable systems that are not resistant to change</li>
+            <li class="fragment">Avoiding common Rails pitfalls (validation conflicts anyone?)</li>
+            <li class="fragment">Common courtesy to your successors</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>How?</h2>
+          <h3 class="fragment">By separating responsibilities!</h3>
+        </section>
+
+        <section>
+          <h2>Typical Rails action lifecycle</h2>
+          <ul>
+            <li>params coercion & validation</li>
+            <li>performing work</li>
+            <li>response - rendering view, rendering JSON/XML, etc.</li>
+          </ul>
+        </section>
+
+        <section>
+          <section>
+            <h2>Typical Rails programmer mindset</h2>
+            <p>(in great simplification)</p>
+            <small>sorted ascending by the programmer's experience</small>
+          </section>
+
+          <section>
+            <h2>Params coercion & validation</h2>
+            <ul>
+              <li>I need new validations, I'll just add it to the corresponding model</li>
+              <li>I need new validations, I'll create a form object and put the validations there</li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li>Very quickly we get conditional validations</li>
+                <li>
+                  Typically by using a form object gem or whipping one up myself using ActiveModel::Model with/or Virtus
+                  and this solution usually expects an ActiveRecord instance that will sync the form object attrs into the model
+                  which is bad
+                </li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <h2>Performing work</h2>
+            <ul>
+              <li>I'll just write it in the controller action</li>
+              <li>I'll make a method in the model</li>
+              <li>I'll make a service object</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Response - rendering view, rendering JSON/XML, etc.</h2>
+            <ul>
+              <li>make an if/else statement on the result of performed work  and render/redirect/etc</li>
+              <li>make guard clause on the result of the performed work and render/redirect/etc</li>
+            </ul>
+            <aside class="notes">This is not entirely bad, but there are different (maybe better?) ways to do this</aside>
+          </section>
+          <section>
+            <h2>Wrong</h2>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>How should we do it then?</h2>
+          </section>
+
+          <section>
+            <h2>Params coercion & validation</h2>
+            <p>Use a form object, that isn't coupled to any ActiveRecord instance</p>
+
+            <aside class="notes">
+              <p>Form objects are your domain models, they are first-class citizens, so treat them that way,
+                and not as slaves to your ActiveRecord models</p>
+              <p>All data validation should happen in the form object, you ActiveRecord models should only contain relationship definitions</p>
+              <p>Also don't think of your form objects as something that is tightly coupled to an HTML form,
+                a form object doesn't have to be rendered as a form. It can come from GET params
+                or a message broker, or anything else that has contact with the outside world</p>
+            </aside>
+          </section>
+
+          <section>
+            <h2>Performing work</h2>
+            <p>This is the heart of the feature/use case/user story - use a/an action/interactor/command/use case/omgwtfbbq pattern</p>
+            <small class="fragment">This is a service object only in tutorial applications!</small>
+
+            <aside class="notes">
+              <p>This is the main action of your feature, it will delegate validation of the input
+                to the form object, and implement the main algorithm, that will process the validated input
+                and persist it, or build a query based on it, or perform any other sort of actions</p>
+
+              <p>Service objects should implement a single unit of work, and be as simple as possible.
+                Instead they tend to be the new fat controller/fat model - the bulk of the code is just shifted into a new object
+                You should use service objects inside your actions to divide the work done there,
+                you can even organise them into composites that share a common interface - this additionally helps writing better unit tests</p>
+
+              <p>Using actions also allows you to move away from factories in test.
+                Factories are bad because they create the state of the application in a way
+                that is not present anywhere in the app, it is artificial and will result in bugs</p>
+
+              <p>We can run a whole action in a setup block to create the desired state of the app</p>
+            </aside>
+          </section>
+
+          <section>
+            <h2>Response - rendering view, rendering JSON/XML, etc.</h2>
+            <p>While there was nothing inherently wrong with the presented solutions, there are better ways of doing it:</p>
+            <h4 class="fragment">Tell, don't ask</h4>
+
+            <aside class="notes">
+              Instead of writing if statements, delegate the decision making to the action (that's what it's for).
+              You can divide the code that is supposed to happen on success and failure (or even more states)
+              and pass them as procs
+            </aside>
+          </section>
+        </section>
+        <section>
+          <h4>This is all good and all but...</h4>
+          <h2 class="fragment">Show me the freaking code!</h2>
+          <aside class="notes">I won't be showing code for every class that will appear, some trivial stuff will be omitted like form objects</aside>
+        </section>
+        <section>
+          <h2>File structure</h2>
+<pre><code class="nohighlight" data-snippet="9" data-trim>
+app/domain
+├── abstract
+│   ├── action.rb
+│   └── form.rb
+├── invitation
+│   ├── action.rb
+│   └── form.rb
+└── registration
+    ├── action.rb
+    └── form.rb
+</code></pre>
+          <aside class="notes">
+            This file structure is strongly opinionated.
+            I find it's easier to structure your code this way,
+            because you don't have to browse in 8 different directories in order to comprehend the feature they implement.
+
+            I also think this somehow forces me to write classes following the SRP principle (this is just my opinion)
+          </aside>
+        </section>
+        <section>
+          <section data-transition="slide-in fade-out">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim>
+class RegistrationController < ApplicationController
+  def new
+    @form = action.form
+  end
+
+  def create
+    action.on(:success, &method(:create_success))
+          .on(:disabled, &method(:create_disabled))
+          .on(:failure, &method(:create_failure))
+          .execute
+  end
+
+  def create_success(user)
+    sign_in(:user, user)
+    redirect_to root_path
+  end
+
+  def create_disabled
+    redirect_to root_path, notice: "Registration is disabled at this time"
+  end
+
+  def create_failure(form)
+    @form = form
+    render :new
+  end
+
+  private
+
+  def action
+    @action ||= Registration::Action.new(params[:registration_create_form])
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              So this is our example controller action, as the name states, it has to do with user registration, so what do we have here?
+              Right off the bat you can see that there is not an ounce of business logic, or params validation, or even a stupid if statement.
+              We delegate this stuff to the action object, and call a couple of methods on it
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+class RegistrationController < ApplicationController
+  def new
+    @form = action.form
+  end
+
+  def create
+    action.on(:success, &method(:create_success))
+          .on(:disabled, &method(:create_disabled))
+          .on(:failure, &method(:create_failure))
+          .execute
+  end
+
+  def create_success(user)
+    sign_in(:user, user)
+    redirect_to root_path
+  end
+
+  def create_disabled
+    redirect_to root_path, notice: "Registration is disabled at this time"
+  end
+
+  def create_failure(form)
+    @form = form
+    render :new
+  end
+
+  private
+<mark>
+  def action
+    @action ||= Registration::Action.new(params[:registration_create_form])
+  end
+</mark>end
+            </code></pre>
+            <aside class="notes">
+              This is how a basic action get's instantiated. It requires the request params.
+              I'm sure you've noticed that there are no strong parameters present here, no permit, no nothing.
+              That's because, this is not the place for that, our controller action only cares about rendering and redirecting,
+              that's what it's good at, dealing with formats and stuff
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+class RegistrationController < ApplicationController<mark>
+  def new
+    @form = action.form
+  end
+</mark>
+  def create
+    action.on(:success, &method(:create_success))
+          .on(:disabled, &method(:create_disabled))
+          .on(:failure, &method(:create_failure))
+          .execute
+  end
+
+  def create_success(user)
+    sign_in(:user, user)
+    redirect_to root_path
+  end
+
+  def create_disabled
+    redirect_to root_path, notice: "Registration is disabled at this time"
+  end
+
+  def create_failure(form)
+    @form = form
+    render :new
+  end
+
+  private
+
+  def action
+    @action ||= Registration::Action.new(params[:registration_create_form])
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              The action exposes a public interface composed of a form object,
+              the main execute method,
+              and the on method (will get to them in a moment)
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+class RegistrationController < ApplicationController
+  def new
+    @form = action.form
+  end
+
+<mark>  def create
+    action.on(:success, &method(:create_success))
+          .on(:disabled, &method(:create_disabled))
+          .on(:failure, &method(:create_failure))
+          .execute
+  end</mark>
+
+  def create_success(user)
+    sign_in(:user, user)
+    redirect_to root_path
+  end
+
+  def create_disabled
+    redirect_to root_path, notice: "Registration is disabled at this time"
+  end
+
+  def create_failure(form)
+    @form = form
+    render :new
+  end
+
+  private
+
+  def action
+    @action ||= Registration::Action.new(params[:registration_create_form])
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              This is the basic way to run an action. We use the .on method to tell the action
+              what to do when a particular result is reached.<br>
+              The controller action doesn't care about if the action was successful, so it doesn't ask it that (well it does but not in that meaning).<br>
+              It just tells the action object that do perform x in case of y, perform z in case of w etc.<br>
+
+              The .on method comes from a gem called whisper, but this is a very simple callback mechanism that can be implemented on your own.
+              You will see how a specific callback is being executed in a sec<br>
+
+              The method function you see here, looks for a method named as the passed symbol and return a ruby Method class instance.
+              This instance behaves like a lambda/proc, we can convert it to a proc with & and pass it to the action, and the wisper gem takes care of the rest
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+class RegistrationController < ApplicationController
+  def new
+    @form = action.form
+  end
+
+  def create
+    action.on(:success, &method(:create_success))
+          .on(:disabled, &method(:create_disabled))
+          .on(:failure, &method(:create_failure))
+          .execute
+  end
+<mark>
+  def create_success(user)
+    sign_in(:user, user)
+    redirect_to root_path
+  end
+
+  def create_disabled
+    redirect_to root_path, notice: "Registration is disabled at this time"
+  end
+
+  def create_failure(form)
+    @form = form
+    render :new
+  end
+</mark>
+  private
+
+  def action
+    @action ||= Registration::Action.new(params[:registration_create_form])
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              For each anticipated result from the action we can have a proper method.
+              In this example we want to differentiate the registration failure from registration disabled (by a feature flag perhaps?)
+              and perform different things (a very lame example but you get the point)<br>
+
+              So what's good about this example? It is very confident, we don't go paranoid and ask the action if it finished, how did it finish
+              and we don't write a bunch of if statements to act accordingly.<br>
+
+              Here we simply say to the action 'Yo, do this in case of success, failure and disabled'
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>So how does this Registration Action look like?</h2>
+          </section>
+          <section data-transition="slide-in fade-out">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+module Registration
+  class Action < Abstract::Action
+    def form
+      @form ||= Registration::Form.new
+    end
+
+    def execute
+      broadcast(:disabled) and return if disabled?
+      form.attributes = params
+
+      broadcast(:success, create_user!) and return if form.valid?
+      broadcast(:failure, form)
+    end
+
+    private
+
+    def create_user!
+      user_attributes = form.attributes.except(:company_name).merge(role: "admin")
+      company_attributes = { name: form.attributes[:company_name] }
+      User.create(user_attributes) do |new_user|
+        new_user.create_company(company_attributes)
+      end
+    end
+
+    def disabled?
+      Feature.on?(:registration_disabled)
+    end
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              Granted, this is a very simple action, but it demonstrates how much better our code can be.
+              We can easily identify what this action does precisely, all we have here is pure business logic,
+              no data validation logic, no rails-specific logic like rendering and redirecting.
+
+              The form method could be refactored to the abstract action and use some metaprogramming magic to infer the proper class name
+              based on the action it is used in. But I find that being explicit is often better, when we come back to this code in a year (or someone else is assigned to it),
+              we won't be figuring out where the hell did this form object come from
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+module Registration
+  class Action < Abstract::Action
+    def form
+      @form ||= Registration::Form.new
+    end
+
+<mark>    def execute
+      broadcast(:disabled) and return if disabled?
+      form.attributes = params
+
+      broadcast(:success, create_user!) and return if form.valid?
+      broadcast(:failure, form)
+    end</mark>
+
+    private
+
+    def create_user!
+      user_attributes = form.attributes.except(:company_name).merge(role: "admin")
+      company_attributes = { name: form.attributes[:company_name] }
+      User.create(user_attributes) do |new_user|
+        new_user.create_company(company_attributes)
+      end
+    end
+
+    def disabled?
+      Feature.on?(:registration_disabled)
+    end
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              Execute is our main part of the actions public interface, it implements the algorithm that is our feature.
+
+              This implementation in particular checks if our registration disabled flag is on, if yes it boradcasts the disabled event,
+              which causes our controller to act on it because we told it to. The broadcast method is part of the whisper gem
+              we can wrap this in a different alias method like result! in our Abstract::Action.
+              This way we provide an adapter for the gem and refactor the gem to something else in only one place, instead of every action
+
+              Next it asks the form if the data we assign to it is valid, if yes, proceed with the user creation and return
+
+              In the event that something breaks during validation we broadcast the failure result with the form object in question, so it can be rendered
+
+            </aside>
+          </section>
+          <section data-transition="fade">
+            <pre><code class="ruby stretch" data-snippet="9" data-trim data-noescape>
+module Registration
+  class Action < Abstract::Action
+    def form
+      @form ||= Registration::Form.new
+    end
+
+    def execute
+      broadcast(:disabled) and return if disabled?
+      form.attributes = params
+
+      broadcast(:success, create_user!) and return if form.valid?
+      broadcast(:failure, form)
+    end
+
+    private
+
+<mark>    def create_user!
+      user_attributes = form.attributes.except(:company_name).merge(role: "admin")
+      company_attributes = { name: form.attributes[:company_name] }
+      User.create(user_attributes) do |new_user|
+        new_user.create_company(company_attributes)
+      end
+    end</mark>
+
+    def disabled?
+      Feature.on?(:registration_disabled)
+    end
+  end
+end
+            </code></pre>
+            <aside class="notes">
+              We can easily see that this logic is starting to get a little hard to follow, someone adds some more data manipulation here
+              and a we have a code disaster at our hands.
+
+              Don't get me wrong, it is a bad habit to optimize stuff early and try to predict the future in the code, because it will almost never be correct,
+              but when someone sees this code structure, a nice division of responsibilities, he will think twice before dumping additional logic here
+              and will think that maybe this needs extracting into a Builder object? (if that person does dump additional logic without thinking twice, then archivize)
+
+              Also we can see that we are not relying on the form object to perform the data persistance, because it is not it's responsibility!
+              It is bad enough that it is responsible for rendering and validating stuff
+            </aside>
+          </section>
+        </section>
+        <section>
+          <h2>Summary:</h2>
+          <ul>
+            <li class="fragment">Don't start to implement stuff by thinking which model should I use here</li>
+            <li class="fragment">Always keep in mind the Single Responsibility Principle</li>
+            <li class="fragment">Don't let Rails dictate how you should write your code</li>
+            <li class="fragment">DO NOT COUPLE YOUR FORM OBJECTS WITH ACTIVERECORD MODELS</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Plans for future:</h2>
+          <ul>
+            <li class="fragment">Refactor an existing action using the techniques described in this presentation</li>
+            <li class="fragment">Talk about the most common design patterns that I use</li>
+            <li class="fragment">Talk about SOLID in Rails</li>
+          </ul>
+          <aside class="notes">
+            * this is in fact something that I wanted to do in the beginning, so I don't preach about theoretical stuff,
+              but that took too much time to finish, so I decided to keep this as a follow up to this presentation <br>
+            * there are a couple of design patterns that I use in everyday work, like the Builder, Factory, Composite, Facade, Decorator, Proxy, Strategy
+              and I would love to talk about them more <br>
+            * in this presentation I only touched upon the Single Responsibility Principle (S in SOLID) (maybe because it's the easiest to understand)
+              but the remaining four are also a very important part of object oriented programming and definetely deserve a presentation of their own
+              especially in a Rails application context (this may prove hard to do, seeing as I'm still getting familiar with SOLID)
+          </aside>
+        </section>
+
+        <section>
+          <h2>Thank you, for your attention</h2>
+          <h3>Questions?</h3>
+        </section>
+      </div>
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+
+    <script>
+
+      // Full list of configuration options available at:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+        slideNumber: true,
+        width: 1920,
+        height: 1080,
+
+        transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+        // Optional reveal.js plugins
+        dependencies: [
+          { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true },
+          { src: 'plugin/notes/notes.js', async: true }
+        ]
+      });
+
+    </script>
+
+  </body>
+</html>
